@@ -1,14 +1,18 @@
+use std::env;
 use std::process::{Command, Stdio};
 
 pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
-    // Check if the session exists
+    // Get the PATH from the environment in which pm is running.
+    let path = env::var("PATH").expect("PATH is not set");
+
+    // Check if the session exists.
     let status = Command::new("tmux")
         .args(["has-session", "-t", pname])
         .stderr(Stdio::null())
         .status()
         .expect("failed to check tmux session");
 
-    // Create session if it doesn't exist
+    // Create the session if it doesn't exist.
     if !status.success() {
         Command::new("tmux")
             .args([
@@ -23,41 +27,24 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
             .expect("failed to create tmux session");
     }
 
-    // Turn:
+    // Update the tmux server environment.
     //
-    // ["cargo", "run"]
+    // This is important for Nix shells because the tmux server
+    // may have been started before entering the current shell.
+    Command::new("tmux")
+        .args(["set-environment", "-g", "PATH"])
+        .arg(&path)
+        .status()
+        .expect("failed to update tmux PATH");
+
+    // Build the Prefix + o binding.
     //
-    // into:
+    // Example:
     //
     // cargo run
-    //
-    // Or:
-    //
-    // ["python", "main.py"]
-    //
-    // into:
-    //
     // python main.py
+    // npm run dev
     //
-    let command = command
-        .iter()
-        .map(|arg| {
-            // Basic shell escaping
-            if arg.contains(' ')
-                || arg.contains('"')
-                || arg.contains('\'')
-                || arg.contains('$')
-                || arg.contains('`')
-            {
-                format!("'{}'", arg.replace('\'', "'\\''"))
-            } else {
-                arg.clone()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    // Build the tmux binding
     let mut tmux_args = vec![
         "bind-key".to_string(),
         "-T".to_string(),
@@ -71,24 +58,16 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
         "80%".to_string(),
         "-w".to_string(),
         "80%".to_string(),
-        "sh".to_string(),
-        "-c".to_string(),
-        command,
     ];
 
-    let output = Command::new("tmux")
+    tmux_args.extend(command.iter().cloned());
+
+    Command::new("tmux")
         .args(&tmux_args)
-        .output()
+        .status()
         .expect("failed to configure tmux popup");
 
-    if !output.status.success() {
-        eprintln!(
-            "tmux error: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-
-    // Attach to session
+    // Attach to the project session.
     Command::new("tmux")
         .args(["attach-session", "-t", pname])
         .status()
