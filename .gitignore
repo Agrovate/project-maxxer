@@ -1,0 +1,8 @@
+.envrc
+CLAUDE.md
+.claude/
+
+
+# Added by cargo
+
+/target
