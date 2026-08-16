@@ -1,14 +1,14 @@
 use std::process::{Command, Stdio};
 
 pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
-    // Check if the tmux session already exists
+    // Check if the session exists
     let status = Command::new("tmux")
         .args(["has-session", "-t", pname])
         .stderr(Stdio::null())
         .status()
         .expect("failed to check tmux session");
 
-    // Create the session if it doesn't exist
+    // Create session if it doesn't exist
     if !status.success() {
         Command::new("tmux")
             .args([
@@ -23,6 +23,41 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
             .expect("failed to create tmux session");
     }
 
+    // Turn:
+    //
+    // ["cargo", "run"]
+    //
+    // into:
+    //
+    // cargo run
+    //
+    // Or:
+    //
+    // ["python", "main.py"]
+    //
+    // into:
+    //
+    // python main.py
+    //
+    let command = command
+        .iter()
+        .map(|arg| {
+            // Basic shell escaping
+            if arg.contains(' ')
+                || arg.contains('"')
+                || arg.contains('\'')
+                || arg.contains('$')
+                || arg.contains('`')
+            {
+                format!("'{}'", arg.replace('\'', "'\\''"))
+            } else {
+                arg.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    // Build the tmux binding
     let mut tmux_args = vec![
         "bind-key".to_string(),
         "-T".to_string(),
@@ -30,23 +65,30 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
         "o".to_string(),
         "display-popup".to_string(),
         "-E".to_string(),
-        "-w".to_string(),
-        "80%".to_string(),
-        "-h".to_string(),
-        "80%".to_string(),
         "-d".to_string(),
         "#{pane_current_path}".to_string(),
+        "-h".to_string(),
+        "80%".to_string(),
+        "-w".to_string(),
+        "80%".to_string(),
+        "sh".to_string(),
+        "-c".to_string(),
+        command,
     ];
 
-    tmux_args.extend(command.iter().cloned());
-
-    // Register Prefix + o
-    Command::new("tmux")
+    let output = Command::new("tmux")
         .args(&tmux_args)
-        .status()
+        .output()
         .expect("failed to configure tmux popup");
 
-    // Attach to the project session
+    if !output.status.success() {
+        eprintln!(
+            "tmux error: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    // Attach to session
     Command::new("tmux")
         .args(["attach-session", "-t", pname])
         .status()
