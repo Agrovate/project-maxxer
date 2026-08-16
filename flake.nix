@@ -10,7 +10,7 @@
     in
     {
         packages.${system}.default = pkgs.rustPlatform.buildRustPackage {
-            pname = "xxx";
+            pname = "pm";
             version = "0.1.0";
 
             src = pkgs.lib.cleanSource ./.;
