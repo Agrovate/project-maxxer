@@ -1,7 +1,6 @@
 use std::process::{Command, Stdio};
 
 pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
-    // Check if the tmux session exists
     let session_exists = Command::new("tmux")
         .args(["has-session", "-t", pname])
         .stderr(Stdio::null())
@@ -9,7 +8,6 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
         .expect("failed to check tmux session")
         .success();
 
-    // Create the session if it doesn't exist
     if !session_exists {
         Command::new("tmux")
             .args([
@@ -24,21 +22,12 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
             .expect("failed to create tmux session");
     }
 
-    // Prefix + o:
-    //
-    // display-popup
-    //     ↓
-    // direnv exec <project> <command>
-    //
-    // This makes direnv load the project's .envrc even when
-    // pm itself was launched from another directory.
     let mut tmux_args = vec![
         "bind-key".to_string(),
         "-T".to_string(),
         "prefix".to_string(),
         "o".to_string(),
         "display-popup".to_string(),
-        "-E".to_string(),
         "-d".to_string(),
         project.to_string(),
         "-h".to_string(),
@@ -50,12 +39,6 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
         project.to_string(),
     ];
 
-    // Add the actual project command
-    //
-    // cargo run
-    // python main.py
-    // npm run dev
-    // etc.
     tmux_args.extend(command.iter().cloned());
 
     Command::new("tmux")
@@ -63,7 +46,6 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
         .status()
         .expect("failed to configure tmux popup");
 
-    // Attach to the project session
     Command::new("tmux")
         .args(["attach-session", "-t", pname])
         .status()
