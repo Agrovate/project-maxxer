@@ -24,6 +24,8 @@
                 rustfmt
                 clippy
                 rust-analyzer
+
+                fzf
             ];
             RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
         };
