@@ -1,14 +1,14 @@
-use std::env;
 use std::process::{Command, Stdio};
 
 pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
-    let status = Command::new("tmux")
+    let session_exists = Command::new("tmux")
         .args(["has-session", "-t", pname])
         .stderr(Stdio::null())
         .status()
-        .expect("failed to check tmux session");
+        .expect("failed to check tmux session")
+        .success();
 
-    if !status.success() {
+    if !session_exists {
         Command::new("tmux")
             .args([
                 "new-session",
@@ -22,9 +22,8 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
             .expect("failed to create tmux session");
     }
 
-    // Keep tmux's environment in sync with the shell
-    // that launched pm.
-    let path = env::var("PATH").expect("PATH is not set");
+    let path = std::env::var("PATH")
+        .expect("PATH environment variable is not set");
 
     Command::new("tmux")
         .args(["set-environment", "-g", "PATH"])
@@ -47,13 +46,20 @@ pub fn run_tmux(pname: &str, project: &str, command: &[String]) {
         "80%".to_string(),
     ];
 
+    // Append the actual project command.
     tmux_args.extend(command.iter().cloned());
 
-    Command::new("tmux")
+    // Register Prefix + o.
+    let status = Command::new("tmux")
         .args(&tmux_args)
         .status()
         .expect("failed to configure tmux popup");
 
+    if !status.success() {
+        eprintln!("warning: failed to configure Prefix + o");
+    }
+
+    // Attach to the project session.
     Command::new("tmux")
         .args(["attach-session", "-t", pname])
         .status()
