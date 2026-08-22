@@ -1,4 +1,10 @@
-use std::path::Path;
+use std::{fs::read_to_string, path::Path};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct PmConfig {
+    command: Vec<String>
+}
 
 pub trait Runner {
     fn command(&self, dir:&str) -> Vec<String>;
@@ -8,9 +14,17 @@ struct Cargo;
 struct Uv;
 struct Make;
 
+struct PmCommand(Vec<String>);
+
 // Selecting with the help of root makers
 pub fn select_runner(dir: &str) -> Option<Box<dyn Runner>> {
-    if Path::new(dir).join("Cargo.toml").exists() {
+
+    if Path::new(dir).join("pmconfig.toml").exists() { // Chceck if pmconfig.toml init
+        let content = read_to_string(Path::new(dir).join("pmconfig.toml")).ok()?;
+        let parsed:PmConfig = toml::from_str(&content).ok()?;
+        Some(Box::new(PmCommand(parsed.command)))
+    }
+    else if Path::new(dir).join("Cargo.toml").exists() {
         Some(Box::new(Cargo))
     }
     else if Path::new(dir).join("pyproject.toml").exists() {
@@ -24,6 +38,11 @@ pub fn select_runner(dir: &str) -> Option<Box<dyn Runner>> {
     }
 }
 
+impl Runner for PmCommand {
+    fn command(&self, _dir:&str) -> Vec<String> {
+        self.0.clone()
+    }
+}
 
 // return arguments to run command: cargo run
 impl Runner for Cargo {
